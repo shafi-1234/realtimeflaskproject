@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Comparison</title>
+    <style>
+        /* Global styles */
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url('{{url_for("static", filename="uploads/img_1.png")}}');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Navbar styles */
+        nav {
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            width: 100%;
+        }
+
+        .navbar-brand {
+            color: #fff;
+            font-size: 24px;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 16px;
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        .nav-links a:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Form styles */
+        form {
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        input {
+            padding: 10px;
+            width: 500px;
+            margin-bottom: 20px;
+            border: 2px solid #3498db;
+            border-radius: 5px;
+            outline: none;
+            transition: all 0.3s ease-in-out;
+        }
+
+        input:focus {
+            border-color: #2ecc71;
+            box-shadow: 0 0 10px rgba(46, 204, 113, 0.5);
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            text-transform: uppercase;
+            transition: all 0.3s ease-in-out;
+        }
+
+        button:hover {
+            background-color: #2ecc71;
+            box-shadow: 0 4px 8px rgba(46, 204, 113, 0.3);
+        }
+
+        form input, form button {
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <nav>
+        <a class="navbar-brand" href="/">ECOMMERCE PRODUCTS PRICE COMPARISON</a>
+        <div class="nav-links">
+            <a href="/">Home</a>
+            <a href="/aboutus">About Us</a>
+        </div>
+    </nav>
+
+    <!-- Search Form -->
+    <form action="/results" method="POST">
+        <input type="text" name="product" placeholder="Enter product name" required>
+        <button type="submit">Search</button>
+    </form>
+
+</body>
+</html>
