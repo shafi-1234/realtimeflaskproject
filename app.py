@@ -1,3 +1,4 @@
+import logging
 from flask import Flask, render_template, request
 import requests
 from bs4 import BeautifulSoup
@@ -8,7 +9,12 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# Flask app initialization
 app = Flask(__name__)
+
+# Logger configuration
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # List of User-Agent strings to rotate
 USER_AGENTS = [
@@ -21,33 +27,29 @@ USER_AGENTS = [
 # Function to send price drop notification email
 def send_price_drop_notification(email, product_name, product_link):
     try:
-        # Email setup
-        sender_email = "getyourproductprice@gmail.com"  # Replace with your sender email
-        sender_password = "Pricecomparison @123"  # Replace with your email password
+        sender_email = "getyourproductprice@gmail.com"
+        sender_password = "Pricecomparison @123"  # Replace with actual credentials
         subject = f"Price Drop Alert: {product_name}"
 
-        body = f"Good news! The price of the product {product_name} has dropped.\n\nCheck it out here: {product_link}"
+        body = f"Good news! The price of {product_name} has dropped.\n\nCheck it out here: {product_link}"
 
-        # Create the email message
         msg = MIMEMultipart()
         msg['From'] = sender_email
         msg['To'] = email
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain'))
 
-        # Sending the email via Gmail SMTP server
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(sender_email, sender_password)
-        text = msg.as_string()
-        server.sendmail(sender_email, email, text)
+        server.sendmail(sender_email, email, msg.as_string())
         server.quit()
-        print(f"Price drop notification sent to {email}")
 
+        logger.info(f"Price drop notification sent to {email}")
     except Exception as e:
-        print(f"Error sending email: {e}")
+        logger.error(f"Error sending email: {e}")
 
-# Function to fetch pages with retries
+# Fetch pages with retries
 def fetch_with_retries(url, headers, max_retries=5):
     for attempt in range(max_retries):
         try:
@@ -56,140 +58,71 @@ def fetch_with_retries(url, headers, max_retries=5):
             return response
         except requests.exceptions.RequestException as e:
             if response.status_code == 429:  # Too Many Requests
-                wait_time = 2 ** attempt + random.uniform(0, 1)  # Exponential backoff with jitter
-                print(f"429 Too Many Requests. Retrying in {wait_time:.2f} seconds...")
+                wait_time = 2 ** attempt + random.uniform(0, 1)
+                logger.warning(f"429 Too Many Requests. Retrying in {wait_time:.2f} seconds...")
                 time.sleep(wait_time)
             else:
+                logger.error(f"Request failed: {e}")
                 raise e
     raise Exception(f"Failed to fetch URL {url} after {max_retries} retries.")
 
 # Normalize product name
 def normalize_product_name(name):
-    name = re.sub(r'[^a-zA-Z0-9\s]', '', name)  # Remove non-alphanumeric characters
-    name = re.sub(r'\s+', ' ', name)  # Replace multiple spaces with one
-    name = name.strip().lower()  # Remove leading/trailing spaces and convert to lowercase
-    return name
+    name = re.sub(r'[^a-zA-Z0-9\s]', '', name)
+    name = re.sub(r'\s+', ' ', name)
+    return name.strip().lower()
 
-# Scraping Amazon
+# Scrape Amazon
 def scrape_amazon(product, pages=2):
     amazon_data = []
-
     for page in range(1, pages + 1):
         url = f"https://www.amazon.in/s?k={'+'.join(product.split())}&page={page}"
-        headers = {
-            'User-Agent': random.choice(USER_AGENTS),
-            'Accept-Language': 'en-US, en;q=0.5'
-        }
+        headers = {'User-Agent': random.choice(USER_AGENTS)}
         try:
             response = fetch_with_retries(url, headers)
             soup = BeautifulSoup(response.text, "lxml")
-
             product_containers = soup.find_all("div", {"data-component-type": "s-search-result"})
-            if not product_containers:
-                continue
-
             for container in product_containers:
                 try:
-                    name_tag = container.find("h2", class_="a-size-medium a-spacing-none a-color-base a-text-normal")
+                    name_tag = container.find("h2", class_="a-size-medium")
                     if not name_tag:
                         continue
-
                     product_name = name_tag.text.strip()
-                    normalized_name = normalize_product_name(product_name)
-
-                    link_tag = name_tag.find_parent("a", href=True)
-                    product_link = f"https://www.amazon.in{link_tag['href']}" if link_tag else "No link available"
-                    price_tag = container.find("span", class_="a-price-whole")
-                    price = price_tag.text.replace(",", "") if price_tag else "No price available"
-                    desc_tag = container.find("div", class_="a-row a-size-base a-color-secondary")
-                    description = desc_tag.text if desc_tag else "No description available"
-                    review_tag = container.find("span", class_="a-icon-alt")
-                    review = review_tag.text if review_tag else "No reviews available"
-                    img_tag = container.find("img", class_="s-image")
-                    product_image = img_tag["src"] if img_tag else "https://via.placeholder.com/100"
-
-                    # Handle relative URLs for images
-                    if not product_image.startswith('http'):
-                        product_image = 'https://www.amazon.in' + product_image
-
+                    product_link = f"https://www.amazon.in{container.find('a', href=True)['href']}"
+                    price = container.find("span", class_="a-price-whole").text.strip() if container.find("span", class_="a-price-whole") else "N/A"
                     amazon_data.append({
                         "Product Name": product_name,
-                        "Normalized Name": normalized_name,
                         "Price": price,
-                        "Description": description,
-                        "Reviews": review,
-                        "Product Link": product_link,
-                        "Product Image": product_image
+                        "Product Link": product_link
                     })
-
-                except Exception as e:
+                except Exception:
                     continue
-
-            time.sleep(random.uniform(2, 5))  # Random delay between requests
-        except requests.exceptions.RequestException as e:
-            continue
-
+        except Exception as e:
+            logger.error(f"Error scraping Amazon: {e}")
     return amazon_data
 
-# Scraping Flipkart
+# Scrape Flipkart
 def scrape_flipkart(product, pages=2):
     flipkart_data = []
-
     for page in range(1, pages + 1):
         url = f"https://www.flipkart.com/search?q={'+'.join(product.split())}&page={page}"
-        headers = {
-            'User-Agent': random.choice(USER_AGENTS),
-            'Accept-Language': 'en-US, en;q=0.5'
-        }
+        headers = {'User-Agent': random.choice(USER_AGENTS)}
         try:
             response = fetch_with_retries(url, headers)
             soup = BeautifulSoup(response.text, "lxml")
-
-            product_containers = soup.find_all("div", class_="cPHDOP col-12-12")
-            if not product_containers:
-                continue
-
+            product_containers = soup.find_all("a", class_="IRpwTa")
             for container in product_containers:
                 try:
-                    name_tag = container.find("div", class_="KzDlHZ")
-                    if not name_tag:
-                        continue
-
-                    product_name = name_tag.text.strip()
-                    normalized_name = normalize_product_name(product_name)
-
-                    link_tag = container.find("a", href=True)
-                    product_link = f"https://www.flipkart.com{link_tag['href']}" if link_tag else "No link available"
-                    price_tag = container.find("div", class_="Nx9bqj _4b5DiR")
-                    price = price_tag.text.replace("\u20b9", "").replace(",", "") if price_tag else "No price available"
-                    desc_tag = container.find("li", class_="J+igdf")
-                    description = desc_tag.text if desc_tag else "No description available"
-                    review_tag = container.find("div", class_="XQDdHH")
-                    review = review_tag.text if review_tag else "No reviews available"
-                    img_tag = container.find("img", class_="DByuf4")
-                    product_image = img_tag["src"] if img_tag else "https://via.placeholder.com/100"
-
-                    # Handle relative URLs for images
-                    if not product_image.startswith('http'):
-                        product_image = 'https://www.flipkart.com' + product_image
-
+                    product_name = container.text.strip()
+                    product_link = f"https://www.flipkart.com{container['href']}"
                     flipkart_data.append({
                         "Product Name": product_name,
-                        "Normalized Name": normalized_name,
-                        "Price": price,
-                        "Description": description,
-                        "Reviews": review,
-                        "Product Link": product_link,
-                        "Product Image": product_image
+                        "Product Link": product_link
                     })
-
-                except Exception as e:
+                except Exception:
                     continue
-
-            time.sleep(random.uniform(2, 5))  # Random delay between requests
-        except requests.exceptions.RequestException as e:
-            continue
-
+        except Exception as e:
+            logger.error(f"Error scraping Flipkart: {e}")
     return flipkart_data
 
 @app.route('/', methods=['GET', 'POST'])
@@ -202,9 +135,11 @@ def aboutus():
 
 @app.route('/results', methods=['POST'])
 def results():
+    logger.info("Processing request at /results")
     product = request.form['product']
     amazon_data = scrape_amazon(product)
     flipkart_data = scrape_flipkart(product)
+    logger.info("Request completed at /results")
     return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
 
 @app.route('/notify', methods=['POST'])
@@ -212,12 +147,8 @@ def notify_price_drop():
     email = request.form['email']
     product_name = request.form['product_name']
     product_link = request.form['product_link']
-
-    # You can implement your logic here to check if the price dropped
-    # For now, we'll send the email regardless
     send_price_drop_notification(email, product_name, product_link)
-
-    return render_template('notification_success.html')  # Redirect to a success page
+    return render_template('notification_success.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
