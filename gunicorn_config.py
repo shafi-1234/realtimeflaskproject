@@ -1,4 +1,4 @@
-# gunicorn.conf.py
 timeout = 120  # Increase timeout to 120 seconds
-workers = 2   # Adjust workers based on CPU cores
-worker_class = 'gevent'  # Use async workers if applicable
+workers = 1  # Set to 1 worker to minimize CPU usage
+worker_class = 'sync'  # Default synchronous workers to reduce overhead
+threads = 2  # Use 2 threads for handling concurrent requests within the same worker
