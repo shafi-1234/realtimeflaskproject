@@ -22,8 +22,8 @@ USER_AGENTS = [
 def send_price_drop_notification(email, product_name, product_link):
     try:
         # Email setup
-        sender_email = "your_email@gmail.com"  # Replace with your sender email
-        sender_password = "your_password"  # Replace with your email password
+        sender_email = "getyourproductprice@gmail.com"  # Replace with your sender email
+        sender_password = "Pricecomparison @123"  # Replace with your email password
         subject = f"Price Drop Alert: {product_name}"
 
         body = f"Good news! The price of the product {product_name} has dropped.\n\nCheck it out here: {product_link}"
