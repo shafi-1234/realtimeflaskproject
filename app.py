@@ -219,5 +219,5 @@ def notify_price_drop():
 
     return render_template('notification_success.html')  # Redirect to a success page
 
-if __name__ == '__main__':
-    app.run(debug=True)
+#if __name__ == '__main__':
+ #   app.run(debug=True)
