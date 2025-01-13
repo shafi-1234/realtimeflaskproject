@@ -4,3 +4,4 @@ accesslog = '-'  # Logs access to the console
 errorlog = '-'  # Logs errors to the console
 loglevel = 'info'  # Level of logging (debug, info, warning, etc.)
 timeout = 30  # Timeout for requests in seconds
+gunicorn --timeout 300 app:app
