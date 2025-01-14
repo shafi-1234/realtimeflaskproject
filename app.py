@@ -7,6 +7,7 @@ import re
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from twilio.rest import Client
 
 app = Flask(__name__)
 
@@ -18,14 +19,13 @@ USER_AGENTS = [
     'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.72 Mobile Safari/537.36',
 ]
 
-# Function to send price drop notification email
-def send_price_drop_notification(email, product_name, product_link):
+# Function to send price drop notification via Email and WhatsApp
+def send_price_drop_notification(email, product_name, product_link, phone_number=None):
     try:
         # Email setup
-        sender_email = "your_email@gmail.com"  # Replace with your sender email
-        sender_password = "your_password"  # Replace with your email password
+        sender_email = "getyourproductprice@gmail.com"  # Replace with your sender email
+        sender_password = "Pricecomparison @123"  # Replace with your email password
         subject = f"Price Drop Alert: {product_name}"
-
         body = f"Good news! The price of the product {product_name} has dropped.\n\nCheck it out here: {product_link}"
 
         # Create the email message
@@ -44,8 +44,26 @@ def send_price_drop_notification(email, product_name, product_link):
         server.quit()
         print(f"Price drop notification sent to {email}")
 
+        # Send WhatsApp message if a phone number is provided
+        if phone_number:
+            # Twilio setup
+            account_sid = 'your_account_sid'  # Replace with your Twilio Account SID
+            auth_token = 'your_auth_token'  # Replace with your Twilio Auth Token
+            from_whatsapp_number = 'whatsapp:+14155238886'  # Twilio sandbox WhatsApp number
+            to_whatsapp_number = f'whatsapp:{phone_number}'  # The user's phone number
+
+            client = Client(account_sid, auth_token)
+            message = client.messages.create(
+                body=f"Price drop alert: {product_name} is now available for a lower price. Check it out: {product_link}",
+                from_=from_whatsapp_number,
+                to=to_whatsapp_number
+            )
+
+            print(f"WhatsApp message sent to {phone_number}")
+
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"Error sending notification: {e}")
+
 
 # Function to fetch pages with retries
 def fetch_with_retries(url, headers, max_retries=5):
@@ -63,12 +81,14 @@ def fetch_with_retries(url, headers, max_retries=5):
                 raise e
     raise Exception(f"Failed to fetch URL {url} after {max_retries} retries.")
 
+
 # Normalize product name
 def normalize_product_name(name):
     name = re.sub(r'[^a-zA-Z0-9\s]', '', name)  # Remove non-alphanumeric characters
     name = re.sub(r'\s+', ' ', name)  # Replace multiple spaces with one
     name = name.strip().lower()  # Remove leading/trailing spaces and convert to lowercase
     return name
+
 
 # Scraping Amazon
 def scrape_amazon(product, pages=2):
@@ -125,11 +145,12 @@ def scrape_amazon(product, pages=2):
                 except Exception as e:
                     continue
 
-            time.sleep(random.uniform(2, 5))  # Random delay between requests
+            time.sleep(random.uniform(2, 7))  # Random delay between requests
         except requests.exceptions.RequestException as e:
             continue
 
     return amazon_data
+
 
 # Scraping Flipkart
 def scrape_flipkart(product, pages=2):
@@ -192,13 +213,16 @@ def scrape_flipkart(product, pages=2):
 
     return flipkart_data
 
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     return render_template('index.html')
 
+
 @app.route('/aboutus')
 def aboutus():
     return render_template('aboutus.html')
+
 
 @app.route('/results', methods=['POST'])
 def results():
@@ -207,17 +231,19 @@ def results():
     flipkart_data = scrape_flipkart(product)
     return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
 
+
 @app.route('/notify', methods=['POST'])
 def notify_price_drop():
     email = request.form['email']
+    phone_number = request.form['phone_number']  # New field for phone number
     product_name = request.form['product_name']
     product_link = request.form['product_link']
 
-    # You can implement your logic here to check if the price dropped
-    # For now, we'll send the email regardless
-    send_price_drop_notification(email, product_name, product_link)
+    # Call the function to send the email and WhatsApp notification
+    send_price_drop_notification(email, product_name, product_link, phone_number)
 
     return render_template('notification_success.html')  # Redirect to a success page
 
-#if __name__ == '__main__':
- #   app.run(debug=True)
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0')
