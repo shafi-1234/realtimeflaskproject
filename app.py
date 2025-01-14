@@ -8,6 +8,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from twilio.rest import Client
+from urllib.parse import quote_plus
+import os
 
 app = Flask(__name__)
 
@@ -23,8 +25,8 @@ USER_AGENTS = [
 def send_price_drop_notification(email, product_name, product_link, phone_number=None):
     try:
         # Email setup
-        sender_email = "getyourproductprice@gmail.com"  # Replace with your sender email
-        sender_password = "Pricecomparison @123"  # Replace with your email password
+        sender_email = os.getenv('SENDER_EMAIL')  # Use environment variable for sensitive info
+        sender_password = os.getenv('SENDER_PASSWORD')
         subject = f"Price Drop Alert: {product_name}"
         body = f"Good news! The price of the product {product_name} has dropped.\n\nCheck it out here: {product_link}"
 
@@ -46,11 +48,10 @@ def send_price_drop_notification(email, product_name, product_link, phone_number
 
         # Send WhatsApp message if a phone number is provided
         if phone_number:
-            # Twilio setup
-            account_sid = 'your_account_sid'  # Replace with your Twilio Account SID
-            auth_token = 'your_auth_token'  # Replace with your Twilio Auth Token
-            from_whatsapp_number = 'whatsapp:+14155238886'  # Twilio sandbox WhatsApp number
-            to_whatsapp_number = f'whatsapp:{phone_number}'  # The user's phone number
+            account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+            auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+            from_whatsapp_number = 'whatsapp:+14155238886'
+            to_whatsapp_number = f'whatsapp:{phone_number}'
 
             client = Client(account_sid, auth_token)
             message = client.messages.create(
@@ -61,9 +62,10 @@ def send_price_drop_notification(email, product_name, product_link, phone_number
 
             print(f"WhatsApp message sent to {phone_number}")
 
+    except smtplib.SMTPException as e:
+        print(f"Error sending email: {e}")
     except Exception as e:
         print(f"Error sending notification: {e}")
-
 
 # Function to fetch pages with retries
 def fetch_with_retries(url, headers, max_retries=5):
@@ -73,14 +75,14 @@ def fetch_with_retries(url, headers, max_retries=5):
             response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:
-            if response.status_code == 429:  # Too Many Requests
+            if response and response.status_code == 429:  # Too Many Requests
                 wait_time = 2 ** attempt + random.uniform(0, 1)  # Exponential backoff with jitter
                 print(f"429 Too Many Requests. Retrying in {wait_time:.2f} seconds...")
                 time.sleep(wait_time)
             else:
+                print(f"Request failed: {e}")
                 raise e
     raise Exception(f"Failed to fetch URL {url} after {max_retries} retries.")
-
 
 # Normalize product name
 def normalize_product_name(name):
@@ -89,13 +91,12 @@ def normalize_product_name(name):
     name = name.strip().lower()  # Remove leading/trailing spaces and convert to lowercase
     return name
 
-
 # Scraping Amazon
 def scrape_amazon(product, pages=2):
     amazon_data = []
 
     for page in range(1, pages + 1):
-        url = f"https://www.amazon.in/s?k={'+'.join(product.split())}&page={page}"
+        url = f"https://www.amazon.in/s?k={quote_plus(product)}&page={page}"
         headers = {
             'User-Agent': random.choice(USER_AGENTS),
             'Accept-Language': 'en-US, en;q=0.5'
@@ -142,22 +143,23 @@ def scrape_amazon(product, pages=2):
                         "Product Image": product_image
                     })
 
-                except Exception as e:
+                except AttributeError:
+                    print(f"Product container malformed: {container}")
                     continue
 
-            time.sleep(random.uniform(2, 7))  # Random delay between requests
-        except requests.exceptions.RequestException as e:
+            time.sleep(random.uniform(2, 5))  # Random delay between requests
+        except Exception as e:
+            print(f"Error scraping Amazon page {page}: {e}")
             continue
 
     return amazon_data
-
 
 # Scraping Flipkart
 def scrape_flipkart(product, pages=2):
     flipkart_data = []
 
     for page in range(1, pages + 1):
-        url = f"https://www.flipkart.com/search?q={'+'.join(product.split())}&page={page}"
+        url = f"https://www.flipkart.com/search?q={quote_plus(product)}&page={page}"
         headers = {
             'User-Agent': random.choice(USER_AGENTS),
             'Accept-Language': 'en-US, en;q=0.5'
@@ -204,25 +206,24 @@ def scrape_flipkart(product, pages=2):
                         "Product Image": product_image
                     })
 
-                except Exception as e:
+                except AttributeError:
+                    print(f"Product container malformed: {container}")
                     continue
 
             time.sleep(random.uniform(2, 5))  # Random delay between requests
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
+            print(f"Error scraping Flipkart page {page}: {e}")
             continue
 
     return flipkart_data
-
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
     return render_template('index.html')
 
-
 @app.route('/aboutus')
 def aboutus():
     return render_template('aboutus.html')
-
 
 @app.route('/results', methods=['POST'])
 def results():
@@ -230,7 +231,6 @@ def results():
     amazon_data = scrape_amazon(product)
     flipkart_data = scrape_flipkart(product)
     return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
-
 
 @app.route('/notify', methods=['POST'])
 def notify_price_drop():
@@ -243,7 +243,6 @@ def notify_price_drop():
     send_price_drop_notification(email, product_name, product_link, phone_number)
 
     return render_template('notification_success.html')  # Redirect to a success page
-
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
