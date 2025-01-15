@@ -1,69 +1,151 @@
-// scripts.js
+// Ensure the script executes only after the DOM is fully loaded
+document.addEventListener("DOMContentLoaded", () => {
+  const searchForm = document.getElementById("searchForm");
+  const searchResults = document.getElementById("searchResults");
+  const modal = document.getElementById("priceModal");
+  const modalContent = modal.querySelector(".modal-content");
+  const closeModalBtn = modal.querySelector(".close");
 
-function searchProducts() {
-    const product = document.getElementById("product-input").value;
-    if (!product) {
-        alert("Please enter a product name.");
-        return;
+  // Event listener for the search form submission
+  searchForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const query = document.getElementById("searchQuery").value.trim();
+
+    if (!query) {
+      alert("Please enter a search term.");
+      return;
     }
 
-    // Make the API request to Flask backend
-    fetch(`/api/search?product=${encodeURIComponent(product)}`)
-        .then(response => response.json())
-        .then(data => {
-            const amazonResultsDiv = document.getElementById("amazon-products");
-            const flipkartResultsDiv = document.getElementById("flipkart-products");
-            amazonResultsDiv.innerHTML = '';  // Clear previous Amazon results
-            flipkartResultsDiv.innerHTML = '';  // Clear previous Flipkart results
+    displayLoadingState();
 
-            // Separate the results into Amazon and Flipkart
-            const amazonProducts = data.products.filter(product => product['Product Link'].includes('amazon.in'));
-            const flipkartProducts = data.products.filter(product => product['Product Link'].includes('flipkart.com'));
+    try {
+      const results = await fetchSearchResults(query);
+      renderSearchResults(results);
+    } catch (error) {
+      console.error("Error fetching search results:", error);
+      alert("Failed to fetch search results. Please try again later.");
+    } finally {
+      removeLoadingState();
+    }
+  });
 
-            // Display Amazon results
-            if (amazonProducts.length > 0) {
-                amazonProducts.forEach(product => {
-                    const productDiv = document.createElement("div");
-                    productDiv.classList.add("product");
+  // Fetch search results from the server
+  async function fetchSearchResults(query) {
+    const response = await fetch(`/search?query=${encodeURIComponent(query)}`);
 
-                    productDiv.innerHTML = `
-                        <img src="${product['Product Image']}" alt="${product['Product Name']}">
-                        <h4>${product['Product Name']}</h4>
-                        <p>${product['Description']}</p>
-                        <p class="price">₹${product['Price']}</p>
-                        <p>Reviews: ${product['Reviews']}</p>
-                        <a href="${product['Product Link']}" target="_blank">View on Amazon</a>
-                    `;
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
 
-                    amazonResultsDiv.appendChild(productDiv);
-                });
-            } else {
-                amazonResultsDiv.innerHTML = "<p>No products found on Amazon.</p>";
-            }
+    return await response.json();
+  }
 
-            // Display Flipkart results
-            if (flipkartProducts.length > 0) {
-                flipkartProducts.forEach(product => {
-                    const productDiv = document.createElement("div");
-                    productDiv.classList.add("product");
+  // Render search results dynamically
+  function renderSearchResults(results) {
+    searchResults.innerHTML = "";
 
-                    productDiv.innerHTML = `
-                        <img src="${product['Product Image']}" alt="${product['Product Name']}">
-                        <h4>${product['Product Name']}</h4>
-                        <p>${product['Description']}</p>
-                        <p class="price">₹${product['Price']}</p>
-                        <p>Reviews: ${product['Reviews']}</p>
-                        <a href="${product['Product Link']}" target="_blank">View on Flipkart</a>
-                    `;
+    if (!results || results.length === 0) {
+      searchResults.innerHTML = "<p>No results found.</p>";
+      return;
+    }
 
-                    flipkartResultsDiv.appendChild(productDiv);
-                });
-            } else {
-                flipkartResultsDiv.innerHTML = "<p>No products found on Flipkart.</p>";
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('There was an issue fetching product data.');
-        });
-}
+    results.forEach((result) => {
+      const resultCard = document.createElement("div");
+      resultCard.className = "result-card";
+
+      resultCard.innerHTML = `
+        <h3>${result.title}</h3>
+        <p>Price: ${result.price}</p>
+        <a href="${result.link}" target="_blank">View Product</a>
+        <button class="alert-btn" data-product='${JSON.stringify(result)}'>Set Price Alert</button>
+      `;
+
+      searchResults.appendChild(resultCard);
+    });
+
+    attachAlertButtonHandlers();
+  }
+
+  // Attach event handlers to "Set Price Alert" buttons
+  function attachAlertButtonHandlers() {
+    const alertButtons = document.querySelectorAll(".alert-btn");
+
+    alertButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const productData = JSON.parse(button.getAttribute("data-product"));
+        openModal(productData);
+      });
+    });
+  }
+
+  // Display loading state
+  function displayLoadingState() {
+    searchResults.innerHTML = "<p>Loading...</p>";
+  }
+
+  // Remove loading state
+  function removeLoadingState() {
+    // Placeholder in case further actions are needed
+  }
+
+  // Open modal with product details
+  function openModal(product) {
+    modalContent.innerHTML = `
+      <span class="close">&times;</span>
+      <h3>Set Price Alert</h3>
+      <p>Product: ${product.title}</p>
+      <p>Current Price: ${product.price}</p>
+      <form id="alertForm">
+        <label for="targetPrice">Target Price:</label>
+        <input type="number" id="targetPrice" name="targetPrice" required />
+        <button type="submit">Set Alert</button>
+      </form>
+    `;
+
+    modal.style.display = "block";
+
+    const alertForm = document.getElementById("alertForm");
+    alertForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const targetPrice = document.getElementById("targetPrice").value;
+      setPriceAlert(product, targetPrice);
+    });
+
+    const closeBtn = modalContent.querySelector(".close");
+    closeBtn.addEventListener("click", closeModal);
+  }
+
+  // Close modal
+  function closeModal() {
+    modal.style.display = "none";
+    modalContent.innerHTML = "";
+  }
+
+  // Set price alert (stub function for backend integration)
+  async function setPriceAlert(product, targetPrice) {
+    try {
+      const response = await fetch("/set-alert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product, targetPrice }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to set price alert.");
+      }
+
+      alert("Price alert set successfully!");
+      closeModal();
+    } catch (error) {
+      console.error("Error setting price alert:", error);
+      alert("Failed to set price alert. Please try again later.");
+    }
+  }
+
+  // Close modal on outside click
+  window.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      closeModal();
+    }
+  });
+});
