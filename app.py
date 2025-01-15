@@ -204,19 +204,31 @@ def aboutus():
 def results():
     try:
         if request.method == 'POST':
-            product = request.form['product']
+            # Ensure that 'product' is in the form data
+            product = request.form.get('product')
+            if not product:
+                # If 'product' is missing from the form, return an error page
+                return render_template('error.html', error_message="No product specified.")
+
+            # Scraping data from Amazon and Flipkart
             amazon_data = scrape_amazon(product)
             flipkart_data = scrape_flipkart(product)
 
+            # Check if both datasets are empty
             if not amazon_data and not flipkart_data:
+                # No products found, return a page indicating no results
                 return render_template('no_results.html')
 
+            # If data is available, return the result page
             return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
         else:
+            # If the request method is not POST, return a 405 error
             return "Method Not Allowed", 405
     except Exception as e:
-        print(f"Error: {e}")
-        return "An error occurred. Please try again later."
+        # Catch any unexpected errors and display a user-friendly message
+        print(f"Error processing /results route: {e}")
+        return render_template('error.html', error_message="An error occurred while processing your request. Please try again later.")
+
 
 
 
