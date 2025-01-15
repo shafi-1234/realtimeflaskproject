@@ -202,17 +202,22 @@ def aboutus():
 
 @app.route('/results', methods=['POST'])
 def results():
-    if request.method == 'POST':
-        product = request.form['product']
-        amazon_data = scrape_amazon(product)
-        flipkart_data = scrape_flipkart(product)
+    try:
+        if request.method == 'POST':
+            product = request.form['product']
+            amazon_data = scrape_amazon(product)
+            flipkart_data = scrape_flipkart(product)
 
-        if not amazon_data and not flipkart_data:
-            return render_template('no_results.html')  # Optional: display a page if no results found
+            if not amazon_data and not flipkart_data:
+                return render_template('no_results.html')
 
-        return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
-    else:
-        return "Method Not Allowed", 405  # Handling invalid method
+            return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
+        else:
+            return "Method Not Allowed", 405
+    except Exception as e:
+        print(f"Error: {e}")
+        return "An error occurred. Please try again later."
+
 
 
 @app.route('/notify', methods=['POST'])
