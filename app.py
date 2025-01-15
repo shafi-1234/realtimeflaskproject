@@ -15,11 +15,12 @@ app = Flask(__name__)
 
 # List of User-Agent strings to rotate
 USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
     'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.72 Mobile Safari/537.36',
 ]
+headers = {'User-Agent': random.choice(USER_AGENTS)}
 
 # Optional: Add proxy support
 PROXIES = [
@@ -65,23 +66,23 @@ def send_price_drop_notification(email, product_name, product_link, phone_number
         print(f"Error sending notification: {e}")
 
 # Function to fetch pages with retries
-def fetch_with_retries(url, headers, max_retries=5, use_proxies=False):
-    for attempt in range(max_retries):
+MAX_RETRIES = 5
+
+def fetch_with_retries(url, headers):
+    for attempt in range(MAX_RETRIES):
         try:
-            proxy = random.choice(PROXIES) if use_proxies and PROXIES else None
-            response = requests.get(url, headers=headers, proxies=proxy, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:
-            if response and response.status_code in [429, 503, 529]:  # Handle rate limiting
-                wait_time = 2 ** attempt + random.uniform(0.5, 1.5)
-                print(f"Server error {response.status_code}. Retrying in {wait_time:.2f} seconds...")
+            if response.status_code == 503:
+                wait_time = 2 ** attempt + random.uniform(0, 1)
+                print(f"503 Error. Retrying in {wait_time:.2f} seconds...")
                 time.sleep(wait_time)
             else:
                 print(f"Request failed: {e}")
-            if attempt == max_retries - 1:
-                raise Exception(f"Failed to fetch URL {url} after {max_retries} retries.")
-    return None
+                break
+    raise Exception(f"Failed to fetch {url} after {MAX_RETRIES} attempts.")
 
 # Normalize product name
 def normalize_product_name(name):
