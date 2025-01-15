@@ -1,4 +1,3 @@
-// Ensure the script executes only after the DOM is fully loaded
 document.addEventListener("DOMContentLoaded", () => {
   const searchForm = document.getElementById("searchForm");
   const searchResults = document.getElementById("searchResults");
@@ -23,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderSearchResults(results);
     } catch (error) {
       console.error("Error fetching search results:", error);
-      alert("Failed to fetch search results. Please try again later.");
+      displayError("Failed to fetch search results. Please try again later.");
     } finally {
       removeLoadingState();
     }
@@ -31,13 +30,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Fetch search results from the server
   async function fetchSearchResults(query) {
-    const response = await fetch(`/search?query=${encodeURIComponent(query)}`);
+    try {
+      const response = await fetch(`/search?query=${encodeURIComponent(query)}`);
 
-    if (!response.ok) {
-      throw new Error("Network response was not ok");
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw new Error("Error occurred while fetching data: " + error.message);
     }
-
-    return await response.json();
   }
 
   // Render search results dynamically
@@ -86,6 +89,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Remove loading state
   function removeLoadingState() {
     // Placeholder in case further actions are needed
+  }
+
+  // Display error message
+  function displayError(message) {
+    searchResults.innerHTML = `<p class="error-message">${message}</p>`;
   }
 
   // Open modal with product details
