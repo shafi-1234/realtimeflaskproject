@@ -66,7 +66,7 @@ def send_price_drop_notification(email, product_name, product_link, phone_number
         print(f"Error sending notification: {e}")
 
 # Function to fetch pages with retries
-MAX_RETRIES = 5
+#MAX_RETRIES = 5
 
 def fetch_with_retries(url, headers):
     for attempt in range(MAX_RETRIES):
@@ -76,7 +76,7 @@ def fetch_with_retries(url, headers):
             return response
         except requests.exceptions.RequestException as e:
             if response.status_code == 503:
-                wait_time = 2 ** attempt + random.uniform(0, 1)
+                wait_time = (2 ** attempt) + random.uniform(0, 1)  # Exponential backoff
                 print(f"503 Error. Retrying in {wait_time:.2f} seconds...")
                 time.sleep(wait_time)
             else:
