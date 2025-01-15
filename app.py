@@ -206,9 +206,14 @@ def results():
         product = request.form['product']
         amazon_data = scrape_amazon(product)
         flipkart_data = scrape_flipkart(product)
+
+        if not amazon_data and not flipkart_data:
+            return render_template('no_results.html')  # Optional: display a page if no results found
+
         return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
     else:
         return "Method Not Allowed", 405  # Handling invalid method
+
 
 @app.route('/notify', methods=['POST'])
 def notify_price_drop():
@@ -223,4 +228,4 @@ def notify_price_drop():
     return render_template('notification_success.html')  # Redirect to a success page
 
 if __name__ == '__main__':
-    app.run(debug=True,host='0.0.0.0')
+    app.run(debug=True)
