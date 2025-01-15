@@ -72,20 +72,15 @@ def fetch_with_retries(url, headers, max_retries=5):
     for attempt in range(max_retries):
         try:
             response = requests.get(url, headers=headers)
-            response.raise_for_status()  # Check for HTTP errors
-            if response.status_code == 529:  # Check specifically for 529 errors
-                wait_time = 2 ** attempt + random.uniform(0, 1)  # Exponential backoff with jitter
-                print(f"529 Server Error. Retrying in {wait_time:.2f} seconds...")
-                time.sleep(wait_time)
-                continue  # Retry the request
+            response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:
-            print(f"Request failed: {e}")
-            if response and response.status_code == 429:  # Handle rate-limiting
+            if response and response.status_code == 429:  # Too Many Requests
                 wait_time = 2 ** attempt + random.uniform(0, 1)  # Exponential backoff with jitter
                 print(f"429 Too Many Requests. Retrying in {wait_time:.2f} seconds...")
                 time.sleep(wait_time)
             else:
+                print(f"Request failed: {e}")
                 raise e
     raise Exception(f"Failed to fetch URL {url} after {max_retries} retries.")
 
@@ -152,7 +147,7 @@ def scrape_amazon(product, pages=2):
                     print(f"Product container malformed: {container}")
                     continue
 
-            time.sleep(random.uniform(5, 10))  # Random delay between requests
+            time.sleep(random.uniform(2, 5))  # Random delay between requests
         except Exception as e:
             print(f"Error scraping Amazon page {page}: {e}")
             continue
@@ -215,7 +210,7 @@ def scrape_flipkart(product, pages=2):
                     print(f"Product container malformed: {container}")
                     continue
 
-            time.sleep(random.uniform(5, 10))  # Random delay between requests
+            time.sleep(random.uniform(2, 5))  # Random delay between requests
         except Exception as e:
             print(f"Error scraping Flipkart page {page}: {e}")
             continue
