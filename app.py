@@ -199,11 +199,16 @@ def index():
 @app.route('/aboutus')
 def aboutus():
     return render_template('aboutus.html')
-@app.route('/results')
+
+@app.route('/results', methods=['POST'])
 def results():
-    amazon_data = get_amazon_data()  # Your logic to fetch Amazon product data
-    flipkart_data = get_flipkart_data()  # Your logic to fetch Flipkart product data
-    return render_template('results.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
+    if request.method == 'POST':
+        product = request.form['product']
+        amazon_data = scrape_amazon(product)
+        flipkart_data = scrape_flipkart(product)
+        return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
+    else:
+        return "Method Not Allowed", 405  # Handling invalid method
 
 @app.route('/notify', methods=['POST'])
 def notify_price_drop():
