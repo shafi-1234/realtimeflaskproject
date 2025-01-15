@@ -7,86 +7,68 @@ import re
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from twilio.rest import Client
-from urllib.parse import quote_plus
-import os
 
 app = Flask(__name__)
 
 # List of User-Agent strings to rotate
 USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
     'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.72 Mobile Safari/537.36',
 ]
-headers = {'User-Agent': random.choice(USER_AGENTS)}
 
-# Optional: Add proxy support
-PROXIES = [
-  {'http': 'http://proxy_ip:port', 'https': 'http://proxy_ip:port'}
-]
-
-# Function to send price drop notifications via Email and WhatsApp
-def send_price_drop_notification(email, product_name, product_link, phone_number=None):
+# Function to send price drop notification email
+def send_price_drop_notification(email, product_name, product_link):
     try:
-        sender_email = os.getenv('SENDER_EMAIL')
-        sender_password = os.getenv('SENDER_PASSWORD')
-        subject = f"Price Drop Alert: {product_name}"
-        body = f"Good news! The price of {product_name} has dropped.\n\nCheck it out here: {product_link}"
-
         # Email setup
+        sender_email = "getyourproductprice@gmail.com"  # Replace with your sender email
+        sender_password = "Pricecomparison @123"  # Replace with your email password
+        subject = f"Price Drop Alert: {product_name}"
+
+        body = f"Good news! The price of the product {product_name} has dropped.\n\nCheck it out here: {product_link}"
+
+        # Create the email message
         msg = MIMEMultipart()
         msg['From'] = sender_email
         msg['To'] = email
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain'))
 
-        # Send Email
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.sendmail(sender_email, email, msg.as_string())
-        print(f"Email sent to {email}")
+        # Sending the email via Gmail SMTP server
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        text = msg.as_string()
+        server.sendmail(sender_email, email, text)
+        server.quit()
+        print(f"Price drop notification sent to {email}")
 
-        # WhatsApp notification
-        if phone_number:
-            account_sid = os.getenv('TWILIO_ACCOUNT_SID')
-            auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-            client = Client(account_sid, auth_token)
-            from_whatsapp_number = 'whatsapp:+14155238886'
-            to_whatsapp_number = f'whatsapp:{phone_number}'
-            client.messages.create(
-                body=f"Price drop alert: {product_name} is now available for a lower price. Check it out: {product_link}",
-                from_=from_whatsapp_number,
-                to=to_whatsapp_number
-            )
-            print(f"WhatsApp notification sent to {phone_number}")
     except Exception as e:
-        print(f"Error sending notification: {e}")
+        print(f"Error sending email: {e}")
 
 # Function to fetch pages with retries
-#MAX_RETRIES = 5
-
-def fetch_with_retries(url, headers):
-    for attempt in range(MAX_RETRIES):
+def fetch_with_retries(url, headers, max_retries=5):
+    for attempt in range(max_retries):
         try:
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers)
             response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:
-            if response.status_code == 503:
-                wait_time = (2 ** attempt) + random.uniform(0, 1)  # Exponential backoff
-                print(f"503 Error. Retrying in {wait_time:.2f} seconds...")
+            if response.status_code == 429:  # Too Many Requests
+                wait_time = 2 ** attempt + random.uniform(0, 1)  # Exponential backoff with jitter
+                print(f"429 Too Many Requests. Retrying in {wait_time:.2f} seconds...")
                 time.sleep(wait_time)
             else:
-                print(f"Request failed: {e}")
-                break
-    raise Exception(f"Failed to fetch {url} after {MAX_RETRIES} attempts.")
+                raise e
+    raise Exception(f"Failed to fetch URL {url} after {max_retries} retries.")
 
 # Normalize product name
 def normalize_product_name(name):
-    return re.sub(r'\s+', ' ', re.sub(r'[^a-zA-Z0-9\s]', '', name)).strip().lower()
+    name = re.sub(r'[^a-zA-Z0-9\s]', '', name)  # Remove non-alphanumeric characters
+    name = re.sub(r'\s+', ' ', name)  # Replace multiple spaces with one
+    name = name.strip().lower()  # Remove leading/trailing spaces and convert to lowercase
+    return name
 
 # Scraping Amazon
 def scrape_amazon(product, pages=2):
@@ -149,7 +131,6 @@ def scrape_amazon(product, pages=2):
 
     return amazon_data
 
-
 # Scraping Flipkart
 def scrape_flipkart(product, pages=2):
     flipkart_data = []
@@ -211,10 +192,13 @@ def scrape_flipkart(product, pages=2):
 
     return flipkart_data
 
-
 @app.route('/', methods=['GET', 'POST'])
 def index():
     return render_template('index.html')
+
+@app.route('/aboutus')
+def aboutus():
+    return render_template('aboutus.html')
 
 @app.route('/results', methods=['POST'])
 def results():
@@ -223,5 +207,17 @@ def results():
     flipkart_data = scrape_flipkart(product)
     return render_template('result.html', amazon_data=amazon_data, flipkart_data=flipkart_data)
 
+@app.route('/notify', methods=['POST'])
+def notify_price_drop():
+    email = request.form['email']
+    product_name = request.form['product_name']
+    product_link = request.form['product_link']
+
+    # You can implement your logic here to check if the price dropped
+    # For now, we'll send the email regardless
+    send_price_drop_notification(email, product_name, product_link)
+
+    return render_template('notification_success.html')  # Redirect to a success page
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True)
