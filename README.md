@@ -1,3 +1,3 @@
-DEPLOYED ON ONRENDER
+NOT DEPLOYED ON ONRENDER
 # realtimeflaskproject
 A real time pricing of amazon and flipkart
